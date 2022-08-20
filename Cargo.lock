@@ -977,7 +977,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "recipe_reader"
+name = "recipe_to_notion"
 version = "0.1.0"
 dependencies = [
  "clap",

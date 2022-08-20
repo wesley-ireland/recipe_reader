@@ -1,5 +1,5 @@
 [package]
-name = "recipe_reader"
+name = "recipe_to_notion"
 version = "0.1.0"
 authors = ["Wesley Ireland"]
 license = "MIT OR Apache-2.0"
