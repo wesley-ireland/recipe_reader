@@ -1,8 +1,15 @@
 [package]
 name = "recipe_reader"
 version = "0.1.0"
+authors = ["Wesley Ireland"]
+license = "MIT OR Apache-2.0"
+description = "A CLI tool that reads recipe metadata from a URL and creates a recipe page in a Notion recipes database."
+readme = "README.md"
+homepage = "https://github.com/wesley-ireland/recipe_reader"
+repository = "https://github.com/wesley-ireland/recipe_reader"
+keywords = ["cli", "notion", "recipes"]
+categories = ["command-line-utilities"]
 edition = "2021"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
