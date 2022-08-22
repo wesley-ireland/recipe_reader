@@ -5,93 +5,101 @@ pub mod notion;
 use scraper::{Html, Selector};
 use serde_json::Value;
 use clap::Parser;
-use dotenv::dotenv;
-use std::env;
+use std::fs;
+use std::path::Path;
 use reqwest::header::HeaderMap;
+use crate::cli::Cli;
 use crate::notion::{Color, MultiSelectProperty, NumberProperty, RichTextAnnotations, RichTextPart, RichTextProperty, RichTextText, SelectProperty, SelectPropertyInner, TitleProperty, UrlProperty};
+use serde::{Deserialize};
+use toml;
 
-struct RecipeReaderEnvironmentVariables {
+extern crate dirs;
+
+#[derive(Deserialize)]
+struct Config {
     notion_api_token: String,
     recipes_db_id: String
 }
 
-fn get_env_vars() -> RecipeReaderEnvironmentVariables {
-    RecipeReaderEnvironmentVariables {
-        notion_api_token: env::var("NOTION_API_TOKEN").unwrap(),
-        recipes_db_id: env::var("RECIPES_DB_ID").unwrap()
-    }
-}
-
 fn main() {
-    dotenv().expect("Unable to load .env file");
-    let env = get_env_vars();
-
-    let args = cli::Cli::parse();
-    let recipe_html = {
+    let (recipe_html, recipe_url) = {
+        let args: Cli = cli::Cli::parse();
         let html_text = reqwest::blocking::get(&args.url).unwrap().text().unwrap();
-        Html::parse_document(&html_text)
+        let html = Html::parse_document(&html_text);
+        (html, args.url)
+    };
+
+    let config: Config = {
+        let config_path = Path::new(&dirs::home_dir().unwrap()).join(".recipe_to_notion.toml");
+        let config_str = fs::read_to_string(config_path)
+            .expect("An error occurred reading the config file");
+        toml::from_str(&config_str).expect("An error occurred parsing the toml config file")
     };
 
     let recipe = get_recipe(recipe_html);
     println!("{}", recipe);
 
+    let notion_url = "https://api.notion.com/v1";
     let notion_client = {
         let mut default_headers = HeaderMap::new();
         default_headers.insert("Authorization",
-                               format!("Bearer {}", env.notion_api_token).parse().unwrap());
+                               format!("Bearer {}", config.notion_api_token).parse().unwrap());
         default_headers.insert("Notion-Version", "2022-02-22".parse().unwrap());
         reqwest::blocking::Client::builder().default_headers(default_headers).build().unwrap()
     };
 
-    let notion_url = "https://api.notion.com/v1";
-
-    let body = notion::CreatePageBody {
-        parent: notion::Parent {
-            database_id: env.recipes_db_id
-        },
-        properties: notion::RecipePageProperties {
-            rating: NumberProperty {
-                number: 0
+    let res = {
+        let body = notion::CreatePageBody {
+            parent: notion::Parent {
+                database_id: config.recipes_db_id
             },
-            servings: RichTextProperty {
-                rich_text: vec![]
-            },
-            cuisine: SelectProperty {
-                select: SelectPropertyInner {
-                    name: "Tmp".to_string(),
-                    color: Option::from(Color::Default)
-                }
-            },
-            tags: MultiSelectProperty {
-                multi_select: vec![]
-            },
-            difficulty: SelectProperty {
-                select: SelectPropertyInner {
-                    name: "Tmp".to_string(),
-                    color: Option::from(Color::Default)
-                }
-            },
-            link: UrlProperty {
-                url: args.url
-            },
-            course: MultiSelectProperty {
-                multi_select: vec![]
-            },
-            name: TitleProperty {
-                title: vec![RichTextPart {
-                    part_type: "text".to_string(),
-                    text: RichTextText { content: recipe.name },
-                    annotations: RichTextAnnotations {
-                        italic: Option::from(true),
-                        bold: Option::from(true),
-                        color: Option::from(Color::Pink)
+            properties: notion::RecipePageProperties {
+                rating: NumberProperty {
+                    number: 0
+                },
+                servings: RichTextProperty {
+                    rich_text: vec![]
+                },
+                cuisine: SelectProperty {
+                    select: SelectPropertyInner {
+                        name: "Tmp".to_string(),
+                        color: Option::from(Color::Red)
+                        // color: Option::None
                     }
-                }]
+                },
+                tags: MultiSelectProperty {
+                    multi_select: vec![]
+                },
+                difficulty: SelectProperty {
+                    select: SelectPropertyInner {
+                        name: "Tmp".to_string(),
+                        color: Option::from(Color::Red)
+                        // color: Option::None
+                    }
+                },
+                link: UrlProperty {
+                    url: recipe_url
+                },
+                course: MultiSelectProperty {
+                    multi_select: vec![]
+                },
+                name: TitleProperty {
+                    title: vec![RichTextPart {
+                        part_type: "text".to_string(),
+                        text: RichTextText { content: recipe.name },
+                        annotations: RichTextAnnotations {
+                            italic: Option::from(true),
+                            bold: Option::from(true),
+                            color: Option::from(Color::Default)
+                            // color: Option::None
+                        }
+                    }]
+                }
             }
-        }
-    };
+        };
 
-    let res = notion_client.post(format!("{}/pages", notion_url)).json(&body).send().unwrap();
+        notion_client.post(format!("{}/pages", notion_url)).json(&body).send().unwrap()
+    };
 
     if res.status().is_success() {
         println!("Recipe added to notion!");
